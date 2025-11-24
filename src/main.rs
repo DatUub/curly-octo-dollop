@@ -332,8 +332,9 @@ impl SiegeSaverApp {
 
         // Spawn a thread to handle file events
         let dest_for_thread = dest_clone;
+        let source_for_thread = source_path.clone();
         std::thread::spawn(move || {
-            handle_file_events(rx, dest_for_thread, status_tx);
+            handle_file_events(rx, source_for_thread, dest_for_thread, status_tx);
         });
     }
 
@@ -371,13 +372,61 @@ impl SiegeSaverApp {
     }
 }
 
-fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_tx: Sender<String>) {
+fn handle_file_events(
+    rx: Receiver<Event>,
+    source_folder: PathBuf,
+    destination_folder: PathBuf,
+    status_tx: Sender<String>,
+) {
     while let Ok(event) = rx.recv() {
         match event.kind {
-            EventKind::Create(_) => {
+            EventKind::Create(_) | EventKind::Modify(_) => {
                 for path in event.paths {
-                    // Check if the path is a directory
-                    if path.is_dir() {
+                    // Check if the path is a file (not a directory)
+                    if path.is_file() {
+                        // Check if the file has a .rec extension
+                        if let Some(extension) = path.extension() {
+                            if extension == "rec" {
+                                // Calculate relative path from source to get the destination path
+                                if let Ok(relative_path) = path.strip_prefix(&source_folder) {
+                                    let dest_path = destination_folder.join(relative_path);
+
+                                    // Ensure the parent directory exists
+                                    if let Some(parent) = dest_path.parent() {
+                                        if let Err(e) = fs::create_dir_all(parent) {
+                                            let msg = format!(
+                                                "Error creating parent directory for {}: {}",
+                                                relative_path.display(),
+                                                e
+                                            );
+                                            let _ = status_tx.send(msg);
+                                            continue;
+                                        }
+                                    }
+
+                                    // Copy the file (overwrite if it exists)
+                                    match fs::copy(&path, &dest_path) {
+                                        Ok(_) => {
+                                            let msg = format!(
+                                                "Backed up file: {}",
+                                                relative_path.display()
+                                            );
+                                            let _ = status_tx.send(msg);
+                                        }
+                                        Err(e) => {
+                                            let msg = format!(
+                                                "Error copying file {}: {}",
+                                                relative_path.display(),
+                                                e
+                                            );
+                                            let _ = status_tx.send(msg);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if path.is_dir() {
+                        // Handle directory creation events (for initial folder backup)
                         if let Some(folder_name) = path.file_name() {
                             let dest_path = destination_folder.join(folder_name);
 
@@ -405,7 +454,7 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_t
                 }
             }
             _ => {
-                // Ignore all other events including deletions and modifications
+                // Ignore all other events including deletions
             }
         }
     }
