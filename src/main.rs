@@ -74,6 +74,7 @@ impl SiegeSaverApp {
         let dest_clone = destination_path.clone();
         let (tx, rx) = channel();
         let (status_tx, status_rx) = channel();
+        let status_tx_clone = status_tx.clone();
 
         let mut debouncer = match new_debouncer(
             Duration::from_millis(500),
@@ -82,13 +83,13 @@ impl SiegeSaverApp {
                 Ok(events) => {
                     for event in events {
                         if let Err(e) = tx.send(event.event) {
-                            eprintln!("Error sending event: {}", e);
+                            let _ = status_tx_clone.send(format!("Error sending event: {}", e));
                         }
                     }
                 }
                 Err(errors) => {
                     for error in errors {
-                        eprintln!("File watch error: {:?}", error);
+                        let _ = status_tx_clone.send(format!("File watch error: {:?}", error));
                     }
                 }
             },
