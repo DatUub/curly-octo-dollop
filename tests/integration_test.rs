@@ -267,68 +267,54 @@ fn test_incremental_file_backup() {
     // Wait for folder creation to be detected
     std::thread::sleep(Duration::from_millis(300));
 
+    // Helper function to write a file and wait for detection
+    let write_and_wait = |filename: &str, content: &str| {
+        fs::write(match_folder.join(filename), content)
+            .unwrap_or_else(|_| panic!("Failed to write {}", filename));
+        std::thread::sleep(Duration::from_millis(300));
+    };
+
     // Now add .rec files one by one (simulating game behavior)
-    fs::write(match_folder.join("round1.rec"), "round 1 data")
-        .expect("Failed to write round1.rec");
-    
-    std::thread::sleep(Duration::from_millis(300));
-    
-    fs::write(match_folder.join("round2.rec"), "round 2 data")
-        .expect("Failed to write round2.rec");
-    
-    std::thread::sleep(Duration::from_millis(300));
-    
-    fs::write(match_folder.join("round3.rec"), "round 3 data")
-        .expect("Failed to write round3.rec");
+    write_and_wait("round1.rec", "round 1 data");
+    write_and_wait("round2.rec", "round 2 data");
+    write_and_wait("round3.rec", "round 3 data");
 
     // Wait for the handler to finish
     let backed_up_files = handler.join().expect("Handler thread panicked");
 
     // Verify that individual files were backed up
-    assert!(
-        backed_up_files.iter().any(|f| f.contains("round1.rec")),
-        "round1.rec should have been backed up. Backed up files: {:?}",
-        backed_up_files
-    );
-    assert!(
-        backed_up_files.iter().any(|f| f.contains("round2.rec")),
-        "round2.rec should have been backed up. Backed up files: {:?}",
-        backed_up_files
-    );
-    assert!(
-        backed_up_files.iter().any(|f| f.contains("round3.rec")),
-        "round3.rec should have been backed up. Backed up files: {:?}",
-        backed_up_files
-    );
+    let expected_files = ["round1.rec", "round2.rec", "round3.rec"];
+    for file in &expected_files {
+        assert!(
+            backed_up_files.iter().any(|f| f.contains(file)),
+            "{} should have been backed up. Backed up files: {:?}",
+            file,
+            backed_up_files
+        );
+    }
 
     // Verify files exist in destination
     let dest_match = dest_dir.join("Match-2025-11-24-001");
-    assert!(
-        dest_match.join("round1.rec").exists(),
-        "round1.rec should exist in destination"
-    );
-    assert!(
-        dest_match.join("round2.rec").exists(),
-        "round2.rec should exist in destination"
-    );
-    assert!(
-        dest_match.join("round3.rec").exists(),
-        "round3.rec should exist in destination"
-    );
+    for file in &expected_files {
+        assert!(
+            dest_match.join(file).exists(),
+            "{} should exist in destination",
+            file
+        );
+    }
 
     // Verify file contents
-    assert_eq!(
-        fs::read_to_string(dest_match.join("round1.rec")).unwrap(),
-        "round 1 data"
-    );
-    assert_eq!(
-        fs::read_to_string(dest_match.join("round2.rec")).unwrap(),
-        "round 2 data"
-    );
-    assert_eq!(
-        fs::read_to_string(dest_match.join("round3.rec")).unwrap(),
-        "round 3 data"
-    );
+    let expected_content = [
+        ("round1.rec", "round 1 data"),
+        ("round2.rec", "round 2 data"),
+        ("round3.rec", "round 3 data"),
+    ];
+    for (file, content) in &expected_content {
+        assert_eq!(
+            fs::read_to_string(dest_match.join(file)).unwrap(),
+            *content
+        );
+    }
 
     // Clean up
     fs::remove_dir_all(&test_dir).expect("Failed to clean up test directory");
