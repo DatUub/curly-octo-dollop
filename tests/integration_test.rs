@@ -174,3 +174,162 @@ fn test_file_watcher_detects_directories() {
     // Clean up
     fs::remove_dir_all(&test_dir).expect("Failed to clean up test directory");
 }
+
+#[test]
+fn test_incremental_file_backup() {
+    // Create temporary test directories
+    let test_dir = std::env::temp_dir().join("siegesaver_incremental_test");
+    let source_dir = test_dir.join("source");
+    let dest_dir = test_dir.join("dest");
+
+    // Clean up any previous test runs
+    let _ = fs::remove_dir_all(&test_dir);
+
+    fs::create_dir_all(&source_dir).expect("Failed to create source directory");
+    fs::create_dir_all(&dest_dir).expect("Failed to create dest directory");
+
+    let (tx, rx) = channel();
+    let dest_clone = dest_dir.clone();
+    let source_clone = source_dir.clone();
+
+    // Create debouncer with shorter timeout for testing
+    let mut debouncer = new_debouncer(
+        Duration::from_millis(100),
+        None,
+        move |result: DebounceEventResult| {
+            if let Ok(events) = result {
+                for event in events {
+                    let _ = tx.send(event.event);
+                }
+            }
+        },
+    )
+    .expect("Failed to create debouncer");
+
+    debouncer
+        .watcher()
+        .watch(&source_dir, RecursiveMode::Recursive)
+        .expect("Failed to watch source directory");
+
+    // Spawn a thread to handle file events (simulating the new behavior)
+    let handler = std::thread::spawn(move || {
+        let mut backed_up_files = Vec::new();
+        let start = std::time::Instant::now();
+
+        // Listen for events for up to 3 seconds
+        while start.elapsed() < Duration::from_secs(3) {
+            if let Ok(event) = rx.recv_timeout(Duration::from_millis(100)) {
+                match event.kind {
+                    notify::EventKind::Create(_) | notify::EventKind::Modify(_) => {
+                        for path in event.paths {
+                            // Check if the path is a file
+                            if path.is_file() {
+                                // Check if the file has a .rec extension
+                                if let Some(extension) = path.extension() {
+                                    if extension == "rec" {
+                                        // Calculate relative path
+                                        if let Ok(relative_path) =
+                                            path.strip_prefix(&source_clone)
+                                        {
+                                            let dest_path = dest_clone.join(relative_path);
+
+                                            // Ensure parent directory exists
+                                            if let Some(parent) = dest_path.parent() {
+                                                let _ = fs::create_dir_all(parent);
+                                            }
+
+                                            // Copy the file (overwrite if it exists)
+                                            if fs::copy(&path, &dest_path).is_ok() {
+                                                backed_up_files.push(
+                                                    relative_path.display().to_string(),
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        backed_up_files
+    });
+
+    // Give the watcher a moment to start
+    std::thread::sleep(Duration::from_millis(200));
+
+    // Test scenario: Create a match folder first
+    let match_folder = source_dir.join("Match-2025-11-24-001");
+    fs::create_dir_all(&match_folder).expect("Failed to create match folder");
+
+    // Wait for folder creation to be detected
+    std::thread::sleep(Duration::from_millis(300));
+
+    // Now add .rec files one by one (simulating game behavior)
+    fs::write(match_folder.join("round1.rec"), "round 1 data")
+        .expect("Failed to write round1.rec");
+    
+    std::thread::sleep(Duration::from_millis(300));
+    
+    fs::write(match_folder.join("round2.rec"), "round 2 data")
+        .expect("Failed to write round2.rec");
+    
+    std::thread::sleep(Duration::from_millis(300));
+    
+    fs::write(match_folder.join("round3.rec"), "round 3 data")
+        .expect("Failed to write round3.rec");
+
+    // Wait for the handler to finish
+    let backed_up_files = handler.join().expect("Handler thread panicked");
+
+    // Verify that individual files were backed up
+    assert!(
+        backed_up_files.iter().any(|f| f.contains("round1.rec")),
+        "round1.rec should have been backed up. Backed up files: {:?}",
+        backed_up_files
+    );
+    assert!(
+        backed_up_files.iter().any(|f| f.contains("round2.rec")),
+        "round2.rec should have been backed up. Backed up files: {:?}",
+        backed_up_files
+    );
+    assert!(
+        backed_up_files.iter().any(|f| f.contains("round3.rec")),
+        "round3.rec should have been backed up. Backed up files: {:?}",
+        backed_up_files
+    );
+
+    // Verify files exist in destination
+    let dest_match = dest_dir.join("Match-2025-11-24-001");
+    assert!(
+        dest_match.join("round1.rec").exists(),
+        "round1.rec should exist in destination"
+    );
+    assert!(
+        dest_match.join("round2.rec").exists(),
+        "round2.rec should exist in destination"
+    );
+    assert!(
+        dest_match.join("round3.rec").exists(),
+        "round3.rec should exist in destination"
+    );
+
+    // Verify file contents
+    assert_eq!(
+        fs::read_to_string(dest_match.join("round1.rec")).unwrap(),
+        "round 1 data"
+    );
+    assert_eq!(
+        fs::read_to_string(dest_match.join("round2.rec")).unwrap(),
+        "round 2 data"
+    );
+    assert_eq!(
+        fs::read_to_string(dest_match.join("round3.rec")).unwrap(),
+        "round 3 data"
+    );
+
+    // Clean up
+    fs::remove_dir_all(&test_dir).expect("Failed to clean up test directory");
+}
