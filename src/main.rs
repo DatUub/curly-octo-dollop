@@ -1,3 +1,5 @@
+// Copyright (C) 2025 DatUub | Licensed under GPL-3.0 (see LICENSE file)
+
 #![windows_subsystem = "windows"]
 use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use eframe::egui;
