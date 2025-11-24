@@ -127,6 +127,7 @@ struct SiegeSaverApp {
     status_receiver: Option<Receiver<String>>,
     start_on_boot: bool,
     quit_item_id: tray_icon::menu::MenuId,
+    should_exit: bool,
 }
 
 impl SiegeSaverApp {
@@ -141,6 +142,7 @@ impl SiegeSaverApp {
             status_receiver: None,
             start_on_boot: config.start_on_boot,
             quit_item_id,
+            should_exit: false,
         }
     }
 
@@ -287,17 +289,8 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_t
                         if let Some(folder_name) = path.file_name() {
                             let dest_path = destination_folder.join(folder_name);
 
-                            // Skip if destination already exists to avoid re-copying
-                            if dest_path.exists() {
-                                let msg = format!(
-                                    "Skipping existing folder: {}",
-                                    folder_name.to_string_lossy()
-                                );
-                                let _ = status_tx.send(msg);
-                                continue;
-                            }
-
-                            // Copy the entire directory recursively
+                            // Always merge folders - copy all files to destination
+                            // This ensures new files are backed up even if the folder exists
                             match copy_directory_recursive(&path, &dest_path) {
                                 Ok(()) => {
                                     let msg = format!(
@@ -366,16 +359,19 @@ impl eframe::App for SiegeSaverApp {
         let menu_channel = MenuEvent::receiver();
         if let Ok(event) = menu_channel.try_recv() {
             if event.id == self.quit_item_id {
-                // Actually quit the application
+                // Set should_exit to true and then close
+                self.should_exit = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
 
-        // Intercept close requests - hide window instead of closing
-        if ctx.input(|i| i.viewport().close_requested()) {
+        // Intercept close requests - hide window instead of closing unless should_exit is true
+        if ctx.input(|i| i.viewport().close_requested()) && !self.should_exit {
+            // Hide the window instead of closing
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
+        // When should_exit is true, the close request will proceed normally and terminate the application
 
         // Check for status messages from the background thread
         let mut messages = Vec::new();
