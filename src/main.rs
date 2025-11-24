@@ -289,17 +289,8 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_t
                         if let Some(folder_name) = path.file_name() {
                             let dest_path = destination_folder.join(folder_name);
 
-                            // Skip if destination already exists to avoid re-copying
-                            if dest_path.exists() {
-                                let msg = format!(
-                                    "Skipping existing folder: {}",
-                                    folder_name.to_string_lossy()
-                                );
-                                let _ = status_tx.send(msg);
-                                continue;
-                            }
-
-                            // Copy the entire directory recursively
+                            // Always merge folders - copy all files to destination
+                            // This ensures new files are backed up even if the folder exists
                             match copy_directory_recursive(&path, &dest_path) {
                                 Ok(()) => {
                                     let msg = format!(
