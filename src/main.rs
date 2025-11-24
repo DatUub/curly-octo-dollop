@@ -30,8 +30,9 @@ struct SiegeSaverApp {
 
 impl SiegeSaverApp {
     fn add_status(&mut self, message: String) {
-        self.status_messages.push(format!("[{}] {}", 
-            chrono::Local::now().format("%H:%M:%S"), 
+        self.status_messages.push(format!(
+            "[{}] {}",
+            chrono::Local::now().format("%H:%M:%S"),
             message
         ));
         // Keep only the last 100 messages
@@ -50,7 +51,10 @@ impl SiegeSaverApp {
         let destination_path = PathBuf::from(&self.destination_folder);
 
         if !source_path.exists() {
-            self.add_status(format!("Error: Source folder does not exist: {}", self.source_folder));
+            self.add_status(format!(
+                "Error: Source folder does not exist: {}",
+                self.source_folder
+            ));
             return;
         }
 
@@ -59,7 +63,10 @@ impl SiegeSaverApp {
                 self.add_status(format!("Error creating destination folder: {}", e));
                 return;
             }
-            self.add_status(format!("Created destination folder: {}", self.destination_folder));
+            self.add_status(format!(
+                "Created destination folder: {}",
+                self.destination_folder
+            ));
         }
 
         let dest_clone = destination_path.clone();
@@ -68,19 +75,17 @@ impl SiegeSaverApp {
         let mut debouncer = match new_debouncer(
             Duration::from_millis(500),
             None,
-            move |result: DebounceEventResult| {
-                match result {
-                    Ok(events) => {
-                        for event in events {
-                            if let Err(e) = tx.send(event.event) {
-                                eprintln!("Error sending event: {}", e);
-                            }
+            move |result: DebounceEventResult| match result {
+                Ok(events) => {
+                    for event in events {
+                        if let Err(e) = tx.send(event.event) {
+                            eprintln!("Error sending event: {}", e);
                         }
                     }
-                    Err(errors) => {
-                        for error in errors {
-                            eprintln!("File watch error: {:?}", error);
-                        }
+                }
+                Err(errors) => {
+                    for error in errors {
+                        eprintln!("File watch error: {:?}", error);
                     }
                 }
             },
@@ -92,7 +97,10 @@ impl SiegeSaverApp {
             }
         };
 
-        if let Err(e) = debouncer.watcher().watch(&source_path, RecursiveMode::Recursive) {
+        if let Err(e) = debouncer
+            .watcher()
+            .watch(&source_path, RecursiveMode::Recursive)
+        {
             self.add_status(format!("Error watching folder: {}", e));
             return;
         }
@@ -126,8 +134,9 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf) {
                                 let dest_path = destination_folder.join(filename);
                                 match fs::copy(&path, &dest_path) {
                                     Ok(_) => {
-                                        println!("Backed up: {} -> {}", 
-                                            path.display(), 
+                                        println!(
+                                            "Backed up: {} -> {}",
+                                            path.display(),
                                             dest_path.display()
                                         );
                                     }
@@ -199,7 +208,7 @@ impl eframe::App for SiegeSaverApp {
 
             ui.separator();
             ui.label("Status Messages:");
-            
+
             egui::ScrollArea::vertical()
                 .max_height(200.0)
                 .stick_to_bottom(true)
