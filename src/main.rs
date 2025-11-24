@@ -176,7 +176,7 @@ fn create_fallback_icon() -> Icon {
 fn main() -> Result<(), eframe::Error> {
     // Initialize tray icon menu
     let menu = Menu::new();
-    let quit_item = MenuItem::new("Quit", true, None);
+    let quit_item = MenuItem::new("Quit SiegeSaver", true, None);
     menu.append(&quit_item)
         .expect("Failed to append quit item to menu");
 
