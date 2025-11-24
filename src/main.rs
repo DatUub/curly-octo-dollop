@@ -284,18 +284,24 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_t
                     if path.is_dir() {
                         if let Some(folder_name) = path.file_name() {
                             let dest_path = destination_folder.join(folder_name);
-                            
+
                             // Skip if destination already exists to avoid re-copying
                             if dest_path.exists() {
-                                let msg = format!("Skipping existing folder: {}", folder_name.to_string_lossy());
+                                let msg = format!(
+                                    "Skipping existing folder: {}",
+                                    folder_name.to_string_lossy()
+                                );
                                 let _ = status_tx.send(msg);
                                 continue;
                             }
-                            
+
                             // Copy the entire directory recursively
                             match copy_directory_recursive(&path, &dest_path) {
                                 Ok(()) => {
-                                    let msg = format!("Backed up folder: {}", folder_name.to_string_lossy());
+                                    let msg = format!(
+                                        "Backed up folder: {}",
+                                        folder_name.to_string_lossy()
+                                    );
                                     let _ = status_tx.send(msg);
                                 }
                                 Err(e) => {
@@ -322,14 +328,14 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_t
 fn copy_directory_recursive(source: &PathBuf, destination: &PathBuf) -> std::io::Result<()> {
     // Create the destination directory
     fs::create_dir_all(destination)?;
-    
+
     // Read all entries in the source directory
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let path = entry.path();
         let file_name = entry.file_name();
         let dest_path = destination.join(&file_name);
-        
+
         if path.is_dir() {
             // Recursively copy subdirectories
             copy_directory_recursive(&path, &dest_path)?;
@@ -338,7 +344,7 @@ fn copy_directory_recursive(source: &PathBuf, destination: &PathBuf) -> std::io:
             fs::copy(&path, &dest_path)?;
         }
     }
-    
+
     Ok(())
 }
 

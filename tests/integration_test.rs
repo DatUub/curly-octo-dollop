@@ -74,15 +74,16 @@ fn test_file_watcher_detects_directories() {
                             if path.is_dir() {
                                 if let Some(folder_name) = path.file_name() {
                                     let dest_path = dest_clone.join(folder_name);
-                                    
+
                                     // Skip if destination already exists
                                     if dest_path.exists() {
                                         continue;
                                     }
-                                    
+
                                     // Copy the entire directory recursively
                                     if copy_directory_recursive(&path, &dest_path).is_ok() {
-                                        copied_folders.push(folder_name.to_string_lossy().to_string());
+                                        copied_folders
+                                            .push(folder_name.to_string_lossy().to_string());
                                     }
                                 }
                             }
@@ -101,10 +102,10 @@ fn test_file_watcher_detects_directories() {
     // Create test match folders with files inside
     let match_folder1 = source_dir.join("Match-2025-11-23-001");
     let match_folder2 = source_dir.join("Match-2025-11-23-002");
-    
+
     fs::create_dir_all(&match_folder1).expect("Failed to create match folder 1");
     fs::create_dir_all(&match_folder2).expect("Failed to create match folder 2");
-    
+
     // Create some .rec files inside the match folders
     fs::write(match_folder1.join("replay1.rec"), "replay content 1")
         .expect("Failed to write replay file 1");
@@ -129,10 +130,16 @@ fn test_file_watcher_detects_directories() {
     // Verify folders exist in destination with their contents
     let dest_match1 = dest_dir.join("Match-2025-11-23-001");
     let dest_match2 = dest_dir.join("Match-2025-11-23-002");
-    
-    assert!(dest_match1.exists(), "Match-2025-11-23-001 should exist in destination");
-    assert!(dest_match2.exists(), "Match-2025-11-23-002 should exist in destination");
-    
+
+    assert!(
+        dest_match1.exists(),
+        "Match-2025-11-23-001 should exist in destination"
+    );
+    assert!(
+        dest_match2.exists(),
+        "Match-2025-11-23-002 should exist in destination"
+    );
+
     assert!(
         dest_match1.join("replay1.rec").exists(),
         "replay1.rec should exist in destination folder"
