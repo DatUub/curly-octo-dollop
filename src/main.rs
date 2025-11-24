@@ -287,6 +287,8 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_t
                             
                             // Skip if destination already exists to avoid re-copying
                             if dest_path.exists() {
+                                let msg = format!("Skipping existing folder: {}", folder_name.to_string_lossy());
+                                let _ = status_tx.send(msg);
                                 continue;
                             }
                             
