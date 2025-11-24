@@ -348,3 +348,46 @@ impl eframe::App for SiegeSaverApp {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_config_serialization() {
+        let config = AppConfig {
+            start_on_boot: true,
+            source_folder: "/test/source".to_string(),
+            destination_folder: "/test/dest".to_string(),
+        };
+
+        // Test serialization
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("start_on_boot"));
+        assert!(json.contains("true"));
+        assert!(json.contains("/test/source"));
+        assert!(json.contains("/test/dest"));
+
+        // Test deserialization
+        let deserialized: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.start_on_boot, true);
+        assert_eq!(deserialized.source_folder, "/test/source");
+        assert_eq!(deserialized.destination_folder, "/test/dest");
+    }
+
+    #[test]
+    fn test_app_config_default() {
+        let config = AppConfig::default();
+        assert_eq!(config.start_on_boot, false);
+        assert_eq!(config.source_folder, "");
+        assert_eq!(config.destination_folder, "");
+    }
+
+    #[test]
+    fn test_get_auto_launch() {
+        // Test that we can create an AutoLaunch instance
+        let result = get_auto_launch();
+        // This should succeed as long as we can get the current exe path
+        assert!(result.is_ok());
+    }
+}

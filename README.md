@@ -7,6 +7,8 @@ A high-performance, lightweight desktop utility built with Rust and egui for aut
 - **Real-time File Monitoring**: Watches a source folder for new `.rec` files using the `notify` crate with debounced file system events
 - **Automatic Backup**: Instantly copies new `.rec` files to a destination folder
 - **Persistent Backups**: Destination files persist even when source files are deleted (e.g., due to game file limits)
+- **Start on System Boot**: Optional setting to automatically start SiegeSaver when the system boots
+- **Persistent Configuration**: Settings are automatically saved and restored between sessions
 - **Native GUI**: Built with eframe/egui for a responsive, lightweight desktop interface
 - **Cross-platform**: Works on Windows, macOS, and Linux
 
@@ -44,12 +46,14 @@ cargo run --release
 2. **Select Source Folder**: Click "Browse" next to the Source Folder field and select the folder where `.rec` files are created
 3. **Select Destination Folder**: Click "Browse" next to the Destination Folder field and select where you want backups saved
 4. **Start Watching**: Click the "Start Watching" button to begin monitoring
-5. **Status Updates**: View real-time status messages in the log area at the bottom
+5. **Enable Start on Boot** (Optional): Check the "Start on system boot" checkbox to automatically launch SiegeSaver when your system starts
+6. **Status Updates**: View real-time status messages in the log area at the bottom
 
 The application will automatically:
 - Monitor the source folder for any new `.rec` files
 - Copy them to the destination folder immediately
 - Keep destination files even if the source files are deleted
+- Save your folder selections and preferences for the next time you launch the app
 
 ## Development
 
