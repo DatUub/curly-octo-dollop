@@ -10,6 +10,11 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tray_icon::{
+    menu::{Menu, MenuEvent, MenuItem},
+    TrayIconBuilder, TrayIconEvent, MouseButton,
+};
+use tray_icon::Icon;
 
 #[derive(Serialize, Deserialize, Default)]
 struct AppConfig {
@@ -54,15 +59,60 @@ fn get_auto_launch() -> Result<AutoLaunch, String> {
         .map_err(|e| e.to_string())
 }
 
+fn create_tray_icon() -> Icon {
+    // Create a simple 16x16 icon (blue/white pattern)
+    // RGBA format: each pixel is 4 bytes (R, G, B, A)
+    let mut rgba = Vec::with_capacity(16 * 16 * 4);
+    
+    for y in 0..16 {
+        for x in 0..16 {
+            // Create a simple pattern - blue circle on transparent background
+            let dx = x as f32 - 7.5;
+            let dy = y as f32 - 7.5;
+            let dist = (dx * dx + dy * dy).sqrt();
+            
+            if dist < 6.0 {
+                // Blue color inside the circle
+                rgba.extend_from_slice(&[33, 150, 243, 255]); // Blue (#2196F3)
+            } else {
+                // Transparent outside
+                rgba.extend_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+    }
+    
+    Icon::from_rgba(rgba, 16, 16).expect("Failed to create icon")
+}
+
 fn main() -> Result<(), eframe::Error> {
+    // Initialize tray icon menu
+    let menu = Menu::new();
+    let quit_item = MenuItem::new("Quit", true, None);
+    menu.append(&quit_item).unwrap();
+
+    // Create the tray icon
+    let icon = create_tray_icon();
+    let _tray_icon = TrayIconBuilder::new()
+        .with_menu(Box::new(menu))
+        .with_tooltip("SiegeSaver")
+        .with_icon(icon)
+        .build()
+        .expect("Failed to create tray icon");
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([600.0, 400.0]),
         ..Default::default()
     };
+    
     eframe::run_native(
         "SiegeSaver - Replay File Backup Utility",
         options,
-        Box::new(|_cc| Ok(Box::new(SiegeSaverApp::new()))),
+        Box::new(move |cc| {
+            Ok(Box::new(SiegeSaverApp::new(
+                cc,
+                quit_item.id().clone(),
+            )))
+        }),
     )
 }
 
@@ -74,10 +124,14 @@ struct SiegeSaverApp {
     is_watching: bool,
     status_receiver: Option<Receiver<String>>,
     start_on_boot: bool,
+    quit_item_id: tray_icon::menu::MenuId,
 }
 
 impl SiegeSaverApp {
-    fn new() -> Self {
+    fn new(
+        _cc: &eframe::CreationContext<'_>,
+        quit_item_id: tray_icon::menu::MenuId,
+    ) -> Self {
         let config = AppConfig::load();
         Self {
             source_folder: config.source_folder,
@@ -87,6 +141,7 @@ impl SiegeSaverApp {
             is_watching: false,
             status_receiver: None,
             start_on_boot: config.start_on_boot,
+            quit_item_id,
         }
     }
 
@@ -259,6 +314,36 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_t
 
 impl eframe::App for SiegeSaverApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Handle tray icon click events
+        let tray_channel = TrayIconEvent::receiver();
+        if let Ok(event) = tray_channel.try_recv() {
+            match event {
+                TrayIconEvent::Click { button, .. } => {
+                    if button == MouseButton::Left {
+                        // Show and focus window on left click
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Handle tray menu events
+        let menu_channel = MenuEvent::receiver();
+        if let Ok(event) = menu_channel.try_recv() {
+            if event.id == self.quit_item_id {
+                // Actually quit the application
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
+
+        // Intercept close requests - hide window instead of closing
+        if ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+
         // Check for status messages from the background thread
         let mut messages = Vec::new();
         if let Some(receiver) = &self.status_receiver {
