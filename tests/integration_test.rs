@@ -228,8 +228,7 @@ fn test_incremental_file_backup() {
                                 if let Some(extension) = path.extension() {
                                     if extension == "rec" {
                                         // Calculate relative path
-                                        if let Ok(relative_path) =
-                                            path.strip_prefix(&source_clone)
+                                        if let Ok(relative_path) = path.strip_prefix(&source_clone)
                                         {
                                             let dest_path = dest_clone.join(relative_path);
 
@@ -240,9 +239,8 @@ fn test_incremental_file_backup() {
 
                                             // Copy the file (overwrite if it exists)
                                             if fs::copy(&path, &dest_path).is_ok() {
-                                                backed_up_files.push(
-                                                    relative_path.display().to_string(),
-                                                );
+                                                backed_up_files
+                                                    .push(relative_path.display().to_string());
                                             }
                                         }
                                     }
@@ -310,10 +308,7 @@ fn test_incremental_file_backup() {
         ("round3.rec", "round 3 data"),
     ];
     for (file, content) in &expected_content {
-        assert_eq!(
-            fs::read_to_string(dest_match.join(file)).unwrap(),
-            *content
-        );
+        assert_eq!(fs::read_to_string(dest_match.join(file)).unwrap(), *content);
     }
 
     // Clean up
