@@ -316,16 +316,11 @@ impl eframe::App for SiegeSaverApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Handle tray icon click events
         let tray_channel = TrayIconEvent::receiver();
-        if let Ok(event) = tray_channel.try_recv() {
-            match event {
-                TrayIconEvent::Click { button, .. } => {
-                    if button == MouseButton::Left {
-                        // Show and focus window on left click
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    }
-                }
-                _ => {}
+        if let Ok(TrayIconEvent::Click { button, .. }) = tray_channel.try_recv() {
+            if button == MouseButton::Left {
+                // Show and focus window on left click
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             }
         }
 
