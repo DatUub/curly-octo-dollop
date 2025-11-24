@@ -352,6 +352,10 @@ impl eframe::App for SiegeSaverApp {
                 // Show and focus window on left click
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            } else if button == MouseButton::Right {
+                // Close the application on right click
+                self.should_exit = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
 
