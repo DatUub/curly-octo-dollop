@@ -380,7 +380,7 @@ impl eframe::App for SiegeSaverApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
-        // If should_exit is true, allow the application to close normally
+        // When should_exit is true, the close request will proceed normally and terminate the application
 
         // Check for status messages from the background thread
         let mut messages = Vec::new();
