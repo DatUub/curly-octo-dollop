@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use eframe::egui;
 use notify::{Event, EventKind, RecursiveMode, Watcher};
