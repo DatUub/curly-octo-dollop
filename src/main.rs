@@ -219,7 +219,7 @@ struct SiegeSaverApp {
     status_receiver: Option<Receiver<String>>,
     start_on_boot: bool,
     quit_item_id: tray_icon::menu::MenuId,
-    should_exit: bool,
+    was_minimized: bool,
 }
 
 impl SiegeSaverApp {
@@ -234,7 +234,7 @@ impl SiegeSaverApp {
             status_receiver: None,
             start_on_boot: config.start_on_boot,
             quit_item_id,
-            should_exit: false,
+            was_minimized: false,
         }
     }
 
@@ -493,10 +493,7 @@ impl eframe::App for SiegeSaverApp {
                 // Show and focus window on left click
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-            } else if button == MouseButton::Right {
-                // Close the application on right click
-                self.should_exit = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                self.was_minimized = false;
             }
         }
 
@@ -504,19 +501,18 @@ impl eframe::App for SiegeSaverApp {
         let menu_channel = MenuEvent::receiver();
         if let Ok(event) = menu_channel.try_recv() {
             if event.id == self.quit_item_id {
-                // Set should_exit to true and then close
-                self.should_exit = true;
+                // Quit the application when "Quit SiegeSaver" is clicked
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
 
-        // Intercept close requests - hide window instead of closing unless should_exit is true
-        if ctx.input(|i| i.viewport().close_requested()) && !self.should_exit {
-            // Hide the window instead of closing
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        // Detect minimize and hide to tray instead
+        let is_minimized = ctx.input(|i| i.viewport().minimized == Some(true));
+        if is_minimized && !self.was_minimized {
+            // Window just got minimized - hide to tray instead
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
-        // When should_exit is true, the close request will proceed normally and terminate the application
+        self.was_minimized = is_minimized;
 
         // Check for status messages from the background thread
         let mut messages = Vec::new();
