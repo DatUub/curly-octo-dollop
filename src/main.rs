@@ -45,7 +45,7 @@ impl AppConfig {
 
 fn get_auto_launch() -> Result<AutoLaunch, String> {
     let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
-    
+
     AutoLaunchBuilder::new()
         .set_app_name("SiegeSaver")
         .set_app_path(&exe_path.to_string_lossy())
@@ -293,7 +293,10 @@ impl eframe::App for SiegeSaverApp {
             ui.group(|ui| {
                 ui.label("Destination Folder (where backups will be saved):");
                 ui.horizontal(|ui| {
-                    if ui.text_edit_singleline(&mut self.destination_folder).changed() {
+                    if ui
+                        .text_edit_singleline(&mut self.destination_folder)
+                        .changed()
+                    {
                         self.save_config();
                     }
                     if ui.button("Browse").clicked() {
@@ -327,7 +330,10 @@ impl eframe::App for SiegeSaverApp {
 
             ui.horizontal(|ui| {
                 let mut start_on_boot = self.start_on_boot;
-                if ui.checkbox(&mut start_on_boot, "Start on system boot").changed() {
+                if ui
+                    .checkbox(&mut start_on_boot, "Start on system boot")
+                    .changed()
+                {
                     self.set_start_on_boot(start_on_boot);
                 }
             });
