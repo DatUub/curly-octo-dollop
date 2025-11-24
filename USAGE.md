@@ -27,6 +27,8 @@ The SiegeSaver application features a clean, native desktop interface with the f
 │  │ Start Watching │  (Green indicator when active)            │
 │  └────────────────┘  ○ Not Watching (Gray when inactive)      │
 │                                                                 │
+│  ☐ Start on system boot                                        │
+│                                                                 │
 │  ────────────────────────────────────────────────────────────  │
 │                                                                 │
 │  Status Messages:                                              │
@@ -56,7 +58,22 @@ The SiegeSaver application features a clean, native desktop interface with the f
   - Green ● when watching
   - Gray ○ when not watching
 
-### 3. Status Log
+### 3. Start on System Boot
+- **Checkbox**: "Start on system boot" option
+- When enabled, registers the application to start automatically when the system boots
+- Works cross-platform (Windows, macOS, Linux)
+- Setting is persisted and can be toggled at any time
+
+### 4. Configuration Persistence
+- Application settings are automatically saved to disk
+- Settings saved include:
+  - Source folder path
+  - Destination folder path
+  - Start on boot preference
+- Configuration is restored when the application is relaunched
+- Config stored at `~/.config/siegesaver/config.json` (or platform equivalent)
+
+### 5. Status Log
 - Scrollable area showing timestamped status messages
 - Auto-scrolls to show latest messages
 - Displays:
@@ -70,10 +87,13 @@ The SiegeSaver application features a clean, native desktop interface with the f
 1. Launch SiegeSaver
 2. Click "Browse" next to Source Folder → Select game replay directory
 3. Click "Browse" next to Destination Folder → Select backup location
-4. Click "Start Watching"
-5. Application now monitors source folder and automatically copies any new .rec files
-6. Status log shows real-time backup activity
-7. Click "Stop Watching" to pause monitoring
+4. (Optional) Check "Start on system boot" to automatically launch SiegeSaver on system startup
+5. Click "Start Watching"
+6. Application now monitors source folder and automatically copies any new .rec files
+7. Status log shows real-time backup activity
+8. Click "Stop Watching" to pause monitoring
+
+Settings are automatically saved and will be restored when you launch the app again.
 
 ## Technical Implementation
 
@@ -81,3 +101,6 @@ The SiegeSaver application features a clean, native desktop interface with the f
 - **File Watching**: notify crate with 500ms debouncing
 - **Threading**: Background thread handles file copy operations
 - **File Dialogs**: rfd (Rusty File Dialogs) for native OS dialogs
+- **Auto-Launch**: auto-launch crate for cross-platform startup integration
+- **Configuration**: serde/serde_json for JSON serialization
+- **Platform Directories**: dirs crate for platform-specific config paths
