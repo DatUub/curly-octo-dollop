@@ -375,15 +375,12 @@ impl eframe::App for SiegeSaverApp {
         }
 
         // Intercept close requests - hide window instead of closing unless should_exit is true
-        if ctx.input(|i| i.viewport().close_requested()) {
-            if self.should_exit {
-                // Allow the application to close
-            } else {
-                // Hide the window instead of closing
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            }
+        if ctx.input(|i| i.viewport().close_requested()) && !self.should_exit {
+            // Hide the window instead of closing
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
+        // If should_exit is true, allow the application to close normally
 
         // Check for status messages from the background thread
         let mut messages = Vec::new();
