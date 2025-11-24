@@ -74,7 +74,7 @@ fn load_icon_for_window() -> std::sync::Arc<egui::IconData> {
     }
 }
 
-fn load_icon_data_from_file() -> Result<egui::IconData, Box<dyn std::error::Error>> {
+fn load_icon_bytes_from_file() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     // Load the icon.ico file
     let icon_path = std::env::current_exe()?
         .parent()
@@ -82,11 +82,15 @@ fn load_icon_data_from_file() -> Result<egui::IconData, Box<dyn std::error::Erro
         .join("icon.ico");
 
     // Try current exe directory first, then try current working directory
-    let icon_data = if icon_path.exists() {
-        std::fs::read(&icon_path)?
+    if icon_path.exists() {
+        Ok(std::fs::read(&icon_path)?)
     } else {
-        std::fs::read("icon.ico")?
-    };
+        Ok(std::fs::read("icon.ico")?)
+    }
+}
+
+fn load_icon_data_from_file() -> Result<egui::IconData, Box<dyn std::error::Error>> {
+    let icon_data = load_icon_bytes_from_file()?;
 
     // Load the ICO file using the image crate
     let img = image::load_from_memory(&icon_data)?;
@@ -97,8 +101,8 @@ fn load_icon_data_from_file() -> Result<egui::IconData, Box<dyn std::error::Erro
 
     Ok(egui::IconData {
         rgba: rgba_image.into_raw(),
-        width: width,
-        height: height,
+        width,
+        height,
     })
 }
 
@@ -143,18 +147,7 @@ fn load_icon() -> Icon {
 }
 
 fn load_icon_from_file() -> Result<Icon, Box<dyn std::error::Error>> {
-    // Load the icon.ico file
-    let icon_path = std::env::current_exe()?
-        .parent()
-        .ok_or("Failed to get parent directory")?
-        .join("icon.ico");
-
-    // Try current exe directory first, then try current working directory
-    let icon_data = if icon_path.exists() {
-        std::fs::read(&icon_path)?
-    } else {
-        std::fs::read("icon.ico")?
-    };
+    let icon_data = load_icon_bytes_from_file()?;
 
     // Load the ICO file using the image crate
     let img = image::load_from_memory(&icon_data)?;
