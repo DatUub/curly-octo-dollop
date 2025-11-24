@@ -10,6 +10,7 @@ A high-performance, lightweight desktop utility built with Rust and egui for aut
 - **Persistent Backups**: Destination folders persist even when source folders are deleted (e.g., due to game cleanup)
 - **Start on System Boot**: Optional setting to automatically start SiegeSaver when the system boots
 - **Persistent Configuration**: Settings are automatically saved and restored between sessions
+- **System Tray Integration**: Runs in the system tray with left-click to show window and right-click to quit
 - **Native GUI**: Built with eframe/egui for a responsive, lightweight desktop interface
 - **Cross-platform**: Works on Windows, macOS, and Linux
 
@@ -49,6 +50,10 @@ cargo run --release
 4. **Start Watching**: Click the "Start Watching" button to begin monitoring
 5. **Enable Start on Boot** (Optional): Check the "Start on system boot" checkbox to automatically launch SiegeSaver when your system starts
 6. **Status Updates**: View real-time status messages in the log area at the bottom
+7. **System Tray**: The application runs in your system tray
+   - Left-click the tray icon to show/focus the window
+   - Right-click the tray icon to quit the application
+   - Closing the window will minimize it to the tray instead of exiting
 
 The application will automatically:
 - Monitor the source folder for any new match folders (e.g., `Match-2025-11-23-001`)

@@ -61,7 +61,52 @@ fn get_auto_launch() -> Result<AutoLaunch, String> {
         .map_err(|e| e.to_string())
 }
 
-fn create_tray_icon() -> Icon {
+fn load_icon_for_window() -> std::sync::Arc<egui::IconData> {
+    match load_icon_data_from_file() {
+        Ok(icon_data) => std::sync::Arc::new(icon_data),
+        Err(e) => {
+            eprintln!(
+                "Warning: Failed to load icon.ico for window: {}. Using fallback icon.",
+                e
+            );
+            std::sync::Arc::new(create_fallback_icon_data())
+        }
+    }
+}
+
+fn load_icon_bytes_from_file() -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    // Load the icon.ico file
+    let icon_path = std::env::current_exe()?
+        .parent()
+        .ok_or("Failed to get parent directory")?
+        .join("icon.ico");
+
+    // Try current exe directory first, then try current working directory
+    if icon_path.exists() {
+        Ok(std::fs::read(&icon_path)?)
+    } else {
+        Ok(std::fs::read("icon.ico")?)
+    }
+}
+
+fn load_icon_data_from_file() -> Result<egui::IconData, Box<dyn std::error::Error>> {
+    let icon_data = load_icon_bytes_from_file()?;
+
+    // Load the ICO file using the image crate
+    let img = image::load_from_memory(&icon_data)?;
+
+    // Convert to RGBA8
+    let rgba_image = img.to_rgba8();
+    let (width, height) = rgba_image.dimensions();
+
+    Ok(egui::IconData {
+        rgba: rgba_image.into_raw(),
+        width,
+        height,
+    })
+}
+
+fn generate_fallback_rgba() -> Vec<u8> {
     // Create a simple 16x16 icon (blue/white pattern)
     // RGBA format: each pixel is 4 bytes (R, G, B, A)
     let mut rgba = Vec::with_capacity(16 * 16 * 4);
@@ -83,7 +128,49 @@ fn create_tray_icon() -> Icon {
         }
     }
 
-    Icon::from_rgba(rgba, 16, 16).expect("Failed to create icon")
+    rgba
+}
+
+fn create_fallback_icon_data() -> egui::IconData {
+    egui::IconData {
+        rgba: generate_fallback_rgba(),
+        width: 16,
+        height: 16,
+    }
+}
+
+fn load_icon() -> Icon {
+    // Try to load the icon from icon.ico file
+    // If it fails, fall back to a programmatically generated icon
+    match load_icon_from_file() {
+        Ok(icon) => icon,
+        Err(e) => {
+            eprintln!(
+                "Warning: Failed to load icon.ico: {}. Using fallback icon.",
+                e
+            );
+            create_fallback_icon()
+        }
+    }
+}
+
+fn load_icon_from_file() -> Result<Icon, Box<dyn std::error::Error>> {
+    let icon_data = load_icon_bytes_from_file()?;
+
+    // Load the ICO file using the image crate
+    let img = image::load_from_memory(&icon_data)?;
+
+    // Convert to RGBA8
+    let rgba_image = img.to_rgba8();
+    let (width, height) = rgba_image.dimensions();
+
+    // Create Icon from RGBA data
+    let icon = Icon::from_rgba(rgba_image.into_raw(), width, height)?;
+    Ok(icon)
+}
+
+fn create_fallback_icon() -> Icon {
+    Icon::from_rgba(generate_fallback_rgba(), 16, 16).expect("Failed to create fallback icon")
 }
 
 fn main() -> Result<(), eframe::Error> {
@@ -94,16 +181,21 @@ fn main() -> Result<(), eframe::Error> {
         .expect("Failed to append quit item to menu");
 
     // Create the tray icon
-    let icon = create_tray_icon();
+    let tray_icon_data = load_icon();
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_tooltip("SiegeSaver")
-        .with_icon(icon)
+        .with_icon(tray_icon_data)
         .build()
         .expect("Failed to create tray icon");
 
+    // Load icon for window
+    let window_icon = load_icon_for_window();
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([600.0, 400.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([600.0, 400.0])
+            .with_icon(window_icon),
         ..Default::default()
     };
 
@@ -352,6 +444,10 @@ impl eframe::App for SiegeSaverApp {
                 // Show and focus window on left click
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            } else if button == MouseButton::Right {
+                // Close the application on right click
+                self.should_exit = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
 
