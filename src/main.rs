@@ -88,11 +88,11 @@ fn main() -> Result<(), eframe::Error> {
     // Initialize tray icon menu
     let menu = Menu::new();
     let quit_item = MenuItem::new("Quit", true, None);
-    menu.append(&quit_item).unwrap();
+    menu.append(&quit_item).expect("Failed to append quit item to menu");
 
     // Create the tray icon
     let icon = create_tray_icon();
-    let _tray_icon = TrayIconBuilder::new()
+    let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_tooltip("SiegeSaver")
         .with_icon(icon)
@@ -108,6 +108,8 @@ fn main() -> Result<(), eframe::Error> {
         "SiegeSaver - Replay File Backup Utility",
         options,
         Box::new(move |cc| {
+            // Keep tray_icon alive by moving it into the closure
+            let _tray = tray_icon;
             Ok(Box::new(SiegeSaverApp::new(
                 cc,
                 quit_item.id().clone(),
