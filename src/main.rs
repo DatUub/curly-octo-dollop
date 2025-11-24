@@ -127,6 +127,7 @@ struct SiegeSaverApp {
     status_receiver: Option<Receiver<String>>,
     start_on_boot: bool,
     quit_item_id: tray_icon::menu::MenuId,
+    should_exit: bool,
 }
 
 impl SiegeSaverApp {
@@ -141,6 +142,7 @@ impl SiegeSaverApp {
             status_receiver: None,
             start_on_boot: config.start_on_boot,
             quit_item_id,
+            should_exit: false,
         }
     }
 
@@ -366,15 +368,21 @@ impl eframe::App for SiegeSaverApp {
         let menu_channel = MenuEvent::receiver();
         if let Ok(event) = menu_channel.try_recv() {
             if event.id == self.quit_item_id {
-                // Actually quit the application
+                // Set should_exit to true and then close
+                self.should_exit = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
 
-        // Intercept close requests - hide window instead of closing
+        // Intercept close requests - hide window instead of closing unless should_exit is true
         if ctx.input(|i| i.viewport().close_requested()) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            if self.should_exit {
+                // Allow the application to close
+            } else {
+                // Hide the window instead of closing
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            }
         }
 
         // Check for status messages from the background thread
