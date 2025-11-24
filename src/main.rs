@@ -1,12 +1,57 @@
+use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use eframe::egui;
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, FileIdMap};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+#[derive(Serialize, Deserialize, Default)]
+struct AppConfig {
+    start_on_boot: bool,
+    source_folder: String,
+    destination_folder: String,
+}
+
+impl AppConfig {
+    fn load() -> Self {
+        if let Some(config_dir) = dirs::config_dir() {
+            let config_path = config_dir.join("siegesaver").join("config.json");
+            if let Ok(contents) = fs::read_to_string(&config_path) {
+                if let Ok(config) = serde_json::from_str(&contents) {
+                    return config;
+                }
+            }
+        }
+        Self::default()
+    }
+
+    fn save(&self) {
+        if let Some(config_dir) = dirs::config_dir() {
+            let config_dir = config_dir.join("siegesaver");
+            if fs::create_dir_all(&config_dir).is_ok() {
+                let config_path = config_dir.join("config.json");
+                if let Ok(json) = serde_json::to_string_pretty(self) {
+                    let _ = fs::write(&config_path, json);
+                }
+            }
+        }
+    }
+}
+
+fn get_auto_launch() -> Result<AutoLaunch, String> {
+    let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+    
+    AutoLaunchBuilder::new()
+        .set_app_name("SiegeSaver")
+        .set_app_path(&exe_path.to_string_lossy())
+        .build()
+        .map_err(|e| e.to_string())
+}
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -16,11 +61,10 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "SiegeSaver - Replay File Backup Utility",
         options,
-        Box::new(|_cc| Ok(Box::new(SiegeSaverApp::default()))),
+        Box::new(|_cc| Ok(Box::new(SiegeSaverApp::new()))),
     )
 }
 
-#[derive(Default)]
 struct SiegeSaverApp {
     source_folder: String,
     destination_folder: String,
@@ -28,9 +72,32 @@ struct SiegeSaverApp {
     status_messages: VecDeque<String>,
     is_watching: bool,
     status_receiver: Option<Receiver<String>>,
+    start_on_boot: bool,
 }
 
 impl SiegeSaverApp {
+    fn new() -> Self {
+        let config = AppConfig::load();
+        Self {
+            source_folder: config.source_folder,
+            destination_folder: config.destination_folder,
+            watcher: None,
+            status_messages: VecDeque::new(),
+            is_watching: false,
+            status_receiver: None,
+            start_on_boot: config.start_on_boot,
+        }
+    }
+
+    fn save_config(&self) {
+        let config = AppConfig {
+            start_on_boot: self.start_on_boot,
+            source_folder: self.source_folder.clone(),
+            destination_folder: self.destination_folder.clone(),
+        };
+        config.save();
+    }
+
     fn add_status(&mut self, message: String) {
         self.status_messages.push_back(format!(
             "[{}] {}",
@@ -126,6 +193,33 @@ impl SiegeSaverApp {
         self.is_watching = false;
         self.add_status("Stopped watching".to_string());
     }
+
+    fn set_start_on_boot(&mut self, enabled: bool) {
+        match get_auto_launch() {
+            Ok(auto_launch) => {
+                let result = if enabled {
+                    auto_launch.enable()
+                } else {
+                    auto_launch.disable()
+                };
+
+                match result {
+                    Ok(_) => {
+                        self.start_on_boot = enabled;
+                        self.save_config();
+                        let status = if enabled { "enabled" } else { "disabled" };
+                        self.add_status(format!("Start on system boot {}", status));
+                    }
+                    Err(e) => {
+                        self.add_status(format!("Error setting start on boot: {}", e));
+                    }
+                }
+            }
+            Err(e) => {
+                self.add_status(format!("Error accessing auto-launch: {}", e));
+            }
+        }
+    }
 }
 
 fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_tx: Sender<String>) {
@@ -182,10 +276,13 @@ impl eframe::App for SiegeSaverApp {
             ui.group(|ui| {
                 ui.label("Source Folder (to watch for .rec files):");
                 ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.source_folder);
+                    if ui.text_edit_singleline(&mut self.source_folder).changed() {
+                        self.save_config();
+                    }
                     if ui.button("Browse").clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_folder() {
                             self.source_folder = path.display().to_string();
+                            self.save_config();
                         }
                     }
                 });
@@ -196,10 +293,13 @@ impl eframe::App for SiegeSaverApp {
             ui.group(|ui| {
                 ui.label("Destination Folder (where backups will be saved):");
                 ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.destination_folder);
+                    if ui.text_edit_singleline(&mut self.destination_folder).changed() {
+                        self.save_config();
+                    }
                     if ui.button("Browse").clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_folder() {
                             self.destination_folder = path.display().to_string();
+                            self.save_config();
                         }
                     }
                 });
@@ -220,6 +320,15 @@ impl eframe::App for SiegeSaverApp {
                     ui.colored_label(egui::Color32::GREEN, "● Watching");
                 } else {
                     ui.colored_label(egui::Color32::GRAY, "○ Not Watching");
+                }
+            });
+
+            ui.add_space(20.0);
+
+            ui.horizontal(|ui| {
+                let mut start_on_boot = self.start_on_boot;
+                if ui.checkbox(&mut start_on_boot, "Start on system boot").changed() {
+                    self.set_start_on_boot(start_on_boot);
                 }
             });
 
