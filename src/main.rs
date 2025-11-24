@@ -1,9 +1,10 @@
 use eframe::egui;
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, FileIdMap};
+use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -24,20 +25,21 @@ struct SiegeSaverApp {
     source_folder: String,
     destination_folder: String,
     watcher: Option<Arc<Mutex<Debouncer<notify::RecommendedWatcher, FileIdMap>>>>,
-    status_messages: Vec<String>,
+    status_messages: VecDeque<String>,
     is_watching: bool,
+    status_receiver: Option<Receiver<String>>,
 }
 
 impl SiegeSaverApp {
     fn add_status(&mut self, message: String) {
-        self.status_messages.push(format!(
+        self.status_messages.push_back(format!(
             "[{}] {}",
             chrono::Local::now().format("%H:%M:%S"),
             message
         ));
         // Keep only the last 100 messages
         if self.status_messages.len() > 100 {
-            self.status_messages.remove(0);
+            self.status_messages.pop_front();
         }
     }
 
@@ -71,6 +73,7 @@ impl SiegeSaverApp {
 
         let dest_clone = destination_path.clone();
         let (tx, rx) = channel();
+        let (status_tx, status_rx) = channel();
 
         let mut debouncer = match new_debouncer(
             Duration::from_millis(500),
@@ -107,12 +110,13 @@ impl SiegeSaverApp {
 
         self.watcher = Some(Arc::new(Mutex::new(debouncer)));
         self.is_watching = true;
+        self.status_receiver = Some(status_rx);
         self.add_status(format!("Started watching: {}", self.source_folder));
 
         // Spawn a thread to handle file events
         let dest_for_thread = dest_clone;
         std::thread::spawn(move || {
-            handle_file_events(rx, dest_for_thread);
+            handle_file_events(rx, dest_for_thread, status_tx);
         });
     }
 
@@ -123,7 +127,7 @@ impl SiegeSaverApp {
     }
 }
 
-fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf) {
+fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf, status_tx: Sender<String>) {
     while let Ok(event) = rx.recv() {
         match event.kind {
             EventKind::Create(_) | EventKind::Modify(_) => {
@@ -134,14 +138,17 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf) {
                                 let dest_path = destination_folder.join(filename);
                                 match fs::copy(&path, &dest_path) {
                                     Ok(_) => {
-                                        println!(
-                                            "Backed up: {} -> {}",
-                                            path.display(),
-                                            dest_path.display()
-                                        );
+                                        let msg =
+                                            format!("Backed up: {}", filename.to_string_lossy());
+                                        let _ = status_tx.send(msg);
                                     }
                                     Err(e) => {
-                                        eprintln!("Error copying {}: {}", path.display(), e);
+                                        let msg = format!(
+                                            "Error copying {}: {}",
+                                            filename.to_string_lossy(),
+                                            e
+                                        );
+                                        let _ = status_tx.send(msg);
                                     }
                                 }
                             }
@@ -156,6 +163,17 @@ fn handle_file_events(rx: Receiver<Event>, destination_folder: PathBuf) {
 
 impl eframe::App for SiegeSaverApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Check for status messages from the background thread
+        let mut messages = Vec::new();
+        if let Some(receiver) = &self.status_receiver {
+            while let Ok(msg) = receiver.try_recv() {
+                messages.push(msg);
+            }
+        }
+        for msg in messages {
+            self.add_status(msg);
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("SiegeSaver - Replay File Backup Utility");
             ui.add_space(10.0);
