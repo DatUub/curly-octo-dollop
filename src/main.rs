@@ -10,11 +10,11 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tray_icon::Icon;
 use tray_icon::{
     menu::{Menu, MenuEvent, MenuItem},
-    TrayIconBuilder, TrayIconEvent, MouseButton,
+    MouseButton, TrayIconBuilder, TrayIconEvent,
 };
-use tray_icon::Icon;
 
 #[derive(Serialize, Deserialize, Default)]
 struct AppConfig {
@@ -63,14 +63,14 @@ fn create_tray_icon() -> Icon {
     // Create a simple 16x16 icon (blue/white pattern)
     // RGBA format: each pixel is 4 bytes (R, G, B, A)
     let mut rgba = Vec::with_capacity(16 * 16 * 4);
-    
+
     for y in 0..16 {
         for x in 0..16 {
             // Create a simple pattern - blue circle on transparent background
             let dx = x as f32 - 7.5;
             let dy = y as f32 - 7.5;
             let dist = (dx * dx + dy * dy).sqrt();
-            
+
             if dist < 6.0 {
                 // Blue color inside the circle
                 rgba.extend_from_slice(&[33, 150, 243, 255]); // Blue (#2196F3)
@@ -80,7 +80,7 @@ fn create_tray_icon() -> Icon {
             }
         }
     }
-    
+
     Icon::from_rgba(rgba, 16, 16).expect("Failed to create icon")
 }
 
@@ -88,7 +88,8 @@ fn main() -> Result<(), eframe::Error> {
     // Initialize tray icon menu
     let menu = Menu::new();
     let quit_item = MenuItem::new("Quit", true, None);
-    menu.append(&quit_item).expect("Failed to append quit item to menu");
+    menu.append(&quit_item)
+        .expect("Failed to append quit item to menu");
 
     // Create the tray icon
     let icon = create_tray_icon();
@@ -103,17 +104,14 @@ fn main() -> Result<(), eframe::Error> {
         viewport: egui::ViewportBuilder::default().with_inner_size([600.0, 400.0]),
         ..Default::default()
     };
-    
+
     eframe::run_native(
         "SiegeSaver - Replay File Backup Utility",
         options,
         Box::new(move |cc| {
             // Keep tray_icon alive by moving it into the closure
             let _tray = tray_icon;
-            Ok(Box::new(SiegeSaverApp::new(
-                cc,
-                quit_item.id().clone(),
-            )))
+            Ok(Box::new(SiegeSaverApp::new(cc, quit_item.id().clone())))
         }),
     )
 }
@@ -130,10 +128,7 @@ struct SiegeSaverApp {
 }
 
 impl SiegeSaverApp {
-    fn new(
-        _cc: &eframe::CreationContext<'_>,
-        quit_item_id: tray_icon::menu::MenuId,
-    ) -> Self {
+    fn new(_cc: &eframe::CreationContext<'_>, quit_item_id: tray_icon::menu::MenuId) -> Self {
         let config = AppConfig::load();
         Self {
             source_folder: config.source_folder,
