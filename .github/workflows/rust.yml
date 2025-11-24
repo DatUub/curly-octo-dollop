@@ -1,0 +1,66 @@
+name: Rust Windows Auto-Fix & Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write  # REQUIRED: Allows the bot to commit fixes back to your repo
+
+jobs:
+  build-and-fix:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }} # Check out the actual branch, not a detached head
+
+    # 1. Cache dependencies for speed
+    - name: Cache Cargo
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    # 2. Format Code (Standard "Linting")
+    - name: Check & Fix Formatting
+      run: cargo fmt --all
+
+    # 3. Run Clippy (The Linter) and auto-apply suggestions
+    # --fix automatically applies Clippy's suggestions to your code
+    # --allow-dirty is needed because 'cargo fmt' might have just changed files
+    - name: Run Clippy Fix
+      run: cargo clippy --fix --allow-dirty --allow-staged -- -D warnings
+
+    # 4. Run Cargo Fix (Edition & Compiler Errors)
+    # This attempts to fix compiler errors automatically
+    - name: Run Cargo Fix
+      run: cargo fix --edition --allow-dirty --allow-staged
+
+    # 5. Commit Changes Back to Repo
+    # If any of the above steps changed files, this saves them.
+    - name: Commit and Push Fixes
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "🤖 Auto-fix: Cargo fmt, clippy, and fix applied"
+        branch: ${{ github.head_ref }}
+
+    # 6. Build the actual executable
+    - name: Build Release
+      run: cargo build --verbose --release
+
+    # 7. Upload the .exe for you to download
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: SiegeSaver-Windows
+        path: target/release/*.exe
