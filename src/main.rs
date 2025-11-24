@@ -106,26 +106,34 @@ fn load_icon_data_from_file() -> Result<egui::IconData, Box<dyn std::error::Erro
     })
 }
 
-fn create_fallback_icon_data() -> egui::IconData {
+fn generate_fallback_rgba() -> Vec<u8> {
     // Create a simple 16x16 icon (blue/white pattern)
+    // RGBA format: each pixel is 4 bytes (R, G, B, A)
     let mut rgba = Vec::with_capacity(16 * 16 * 4);
 
     for y in 0..16 {
         for x in 0..16 {
+            // Create a simple pattern - blue circle on transparent background
             let dx = x as f32 - 7.5;
             let dy = y as f32 - 7.5;
             let dist = (dx * dx + dy * dy).sqrt();
 
             if dist < 6.0 {
-                rgba.extend_from_slice(&[33, 150, 243, 255]);
+                // Blue color inside the circle
+                rgba.extend_from_slice(&[33, 150, 243, 255]); // Blue (#2196F3)
             } else {
+                // Transparent outside
                 rgba.extend_from_slice(&[0, 0, 0, 0]);
             }
         }
     }
 
+    rgba
+}
+
+fn create_fallback_icon_data() -> egui::IconData {
     egui::IconData {
-        rgba,
+        rgba: generate_fallback_rgba(),
         width: 16,
         height: 16,
     }
@@ -162,28 +170,7 @@ fn load_icon_from_file() -> Result<Icon, Box<dyn std::error::Error>> {
 }
 
 fn create_fallback_icon() -> Icon {
-    // Create a simple 16x16 icon (blue/white pattern)
-    // RGBA format: each pixel is 4 bytes (R, G, B, A)
-    let mut rgba = Vec::with_capacity(16 * 16 * 4);
-
-    for y in 0..16 {
-        for x in 0..16 {
-            // Create a simple pattern - blue circle on transparent background
-            let dx = x as f32 - 7.5;
-            let dy = y as f32 - 7.5;
-            let dist = (dx * dx + dy * dy).sqrt();
-
-            if dist < 6.0 {
-                // Blue color inside the circle
-                rgba.extend_from_slice(&[33, 150, 243, 255]); // Blue (#2196F3)
-            } else {
-                // Transparent outside
-                rgba.extend_from_slice(&[0, 0, 0, 0]);
-            }
-        }
-    }
-
-    Icon::from_rgba(rgba, 16, 16).expect("Failed to create fallback icon")
+    Icon::from_rgba(generate_fallback_rgba(), 16, 16).expect("Failed to create fallback icon")
 }
 
 fn main() -> Result<(), eframe::Error> {
